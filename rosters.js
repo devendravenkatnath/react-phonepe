@@ -7,54 +7,170 @@ function PhonepeRosters() {
   const { useState } = React;
   const [tableData, setTableData] = useState([]);
   const [isEdit, setIsEdit] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // employee table data loading status
+  const [isDoingAction, setIsDoingAction] = useState(false); // indicates if an emmployee record is adding or editing or deleting
   const [activeEmployee, setActiveEmployee] = useState({
     status: 'active',
   });
 
-  // Calling API only on first render
-  // When chart.js component is created, avoid the render
   if (!tableData.length)
-    fetch('http://fetest.pangeatech.net/data')
+    fetch('http://localhost:3000/users')
       .then((res) => res.json())
       .then((data) => {
-        setTableData(data);
-        setRecords(data);
-      });
+        setTableData(data.result);
+      })
+      .finally(() => setIsLoading(false));
+
+  function resetActiveEmployee() {
+    setActiveEmployee({ status: 'active', name: '', email: '', department: '' });
+  }
+
+  // Fetches all employee data
+  const fetchRecords = async () => {
+    setIsLoading(true);
+    fetch('http://localhost:3000/users')
+      .then((res) => res.json())
+      .then((data) => {
+        setTableData(data.result);
+      })
+      .finally(() => setIsLoading(false));
+  };
+
+  // Add employee to database
+  async function addEmployee(employeeData) {
+    if (!employeeData.name || !employeeData.email) return;
+    setIsDoingAction(true);
+    fetch('http://localhost:3000/users', {
+      method: 'POST',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(employeeData),
+    })
+      .then((res) => res.json())
+      .then((_) => {
+        resetActiveEmployee();
+        fetchRecords();
+      })
+      .finally(() => setIsDoingAction(false));
+  }
+
+  // Edit employee
+  async function editEmployee(employeeData) {
+    setIsDoingAction(true);
+    fetch(`http://localhost:3000/users/${employeeData.id}`, {
+      method: 'PUT',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(employeeData),
+    })
+      .then((res) => res.json())
+      .then((_) => {
+        resetActiveEmployee();
+        setIsEdit(false);
+        fetchRecords();
+      })
+      .finally(() => setIsDoingAction(false));
+  }
+
+  // Delete Employee
+  async function deleteEmployee(employeeId) {
+    setIsDoingAction(true);
+    fetch(`http://localhost:3000/users/${employeeId}`, {
+      method: 'DELETE',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+      .then((res) => res.json())
+      .then((_) => {
+        resetActiveEmployee();
+        setIsEdit(false);
+        fetchRecords();
+      })
+      .finally(() => setIsDoingAction(false));
+  }
+
   return (
     <>
       <div className='row'>
-        {/* Users Table  */}
-        <div className='table-content col-6'>
-          <table className='table table-striped'>
-            <thead className='table-header'>
-              <tr>
-                <th>S no</th>
-                <th>Line of Business</th>
-                <th>Revenue Type</th>
-                <th>Product</th>
-                <th>Year</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tableData.map((record) => {
-                return (
-                  <tr key={record.S_no}>
-                    <td>{record.S_no}</td>
-                    <td>{record.line_of_business}</td>
-                    <td>{record.revenue_type}</td>
-                    <td>{record.product}</td>
-                    <td>{record.year}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        {/* Table Data */}
+        <div className='table-content pl-4 mt-4 col-6'>
+          {isLoading ? (
+            // Loader Icon
+            <div className='h-100 w-100 d-flex align-items-center justify-content-center'>
+              <div className='spinner-border' role='status'>
+                <span className='sr-only'>Loading...</span>
+              </div>
+            </div>
+          ) : (
+            // Table content
+            <table className='table table-striped'>
+              <thead className='table-header'>
+                <tr>
+                  <th>ID</th>
+                  <th>Employee Name</th>
+                  <th>Email</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tableData.map((record) => {
+                  return (
+                    <tr key={record.id}>
+                      <td>{record.id}</td>
+                      <td>{record.name}</td>
+                      <td>{record.email}</td>
+                      <td>
+                        <button
+                          className='btn btn-success'
+                          onClick={() => {
+                            setIsEdit(true);
+                            setActiveEmployee(record);
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className='btn btn-danger'
+                          onClick={() => {
+                            deleteEmployee(record.id);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* User create or edit form */}
-        <div className='col-6'>
+        <div className='col-6 position-fixed right-0'>
           <div className='jumbotron pt-4 m-5'>
-            <div className='card-heading mb-4'>{isEdit ? 'Edit Employee' : 'Add Employee'}</div>
+            <div className='d-flex card-heading mb-4 justify-content-between'>
+              {isEdit ? 'Edit Employee' : 'Add Employee'}
+
+              {/* Clear selected employee */}
+              {isEdit && (
+                <button
+                  className='btn btn-success btn-sm'
+                  onClick={() => {
+                    setIsEdit(false);
+                    resetActiveEmployee();
+                  }}
+                >
+                  Add new +
+                </button>
+              )}
+            </div>
             {isEdit && (
               <div className='d-flex mb-2 align-items-center'>
                 <span className='col-4'>Employee ID</span>
@@ -112,75 +228,22 @@ function PhonepeRosters() {
               </div>
             </div>
 
-            {isEdit ? (
-              <></>
-            ) : (
-              <button
-                className='button'
-                onClick={() => {
-                  console.log(activeEmployee);
-                  //   bomb();
-                }}
-              >
-                Add Employee
-                <div className='button__horizontal'></div>
-                <div className='button__vertical'></div>
-              </button>
-            )}
+            <button
+              className='button'
+              disabled={isDoingAction}
+              onClick={() => {
+                isEdit ? editEmployee(activeEmployee) : addEmployee(activeEmployee);
+              }}
+            >
+              {isEdit ? 'Edit Employee' : 'Add Employee'}
+              <div className='button__horizontal'></div>
+              <div className='button__vertical'></div>
+            </button>
           </div>
         </div>
       </div>
     </>
   );
 }
-
-function setRecords(data) {
-  // Converting raw data to custom datasets
-  for (const index in data) {
-    if (!datasets[data[index]['revenue_type']]) datasets[data[index]['revenue_type']] = {};
-
-    if (!datasets[data[index]['revenue_type']][data[index]['month']]) datasets[data[index]['revenue_type']][data[index]['month']] = 0;
-
-    datasets[data[index]['revenue_type']][data[index]['month']] += data[index]['acv'];
-  }
-
-  // Merging all datasets generated sofar
-  for (const key in datasets) {
-    let temp = {};
-    temp.label = key;
-    temp.data = [];
-    temp.data.push(datasets[key]['January'] ?? 0);
-    temp.data.push(datasets[key]['February'] ?? 0);
-    temp.data.push(datasets[key]['March'] ?? 0);
-    temp.data.push(datasets[key]['April'] ?? 0);
-    temp.data.push(datasets[key]['May'] ?? 0);
-    temp.data.push(datasets[key]['June'] ?? 0);
-    temp.data.push(datasets[key]['July'] ?? 0);
-    temp.data.push(datasets[key]['August'] ?? 0);
-    temp.data.push(datasets[key]['September'] ?? 0);
-    temp.data.push(datasets[key]['October'] ?? 0);
-    temp.data.push(datasets[key]['November'] ?? 0);
-    temp.data.push(datasets[key]['December'] ?? 0);
-    temp.borderColor = colors.pop();
-    temp.backgroundColor = temp.borderColor;
-    finalDatasets.push(temp);
-  }
-
-  // Generating Actual Chart
-  if (!chartRef) chartRef = new Chart(document.getElementById('myChart'), config);
-}
-
-// Chart.js utils
-const labels = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-const data = {
-  labels: labels,
-  datasets: finalDatasets,
-};
-
-const config = {
-  type: 'line',
-  data: data,
-};
 
 ReactDOM.createRoot(document.getElementById('phonepeRosters')).render(<PhonepeRosters />);
